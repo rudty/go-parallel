@@ -156,3 +156,15 @@ func TestForEachArray(t *testing.T) {
 		fmt.Println(e)
 	})
 }
+
+func TestError(t *testing.T) {
+
+	var a [5]int
+	parallel.ForEach(a, func(_ int, e int) {
+		panic("a")
+	}, parallel.TaskOptions{
+		PanicHandle: func(err interface{}) {
+			fmt.Println(err)
+		},
+	})
+}

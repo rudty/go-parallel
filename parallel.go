@@ -11,12 +11,18 @@ type TaskOptions struct {
 	//TaskCount Sets the goroutine count
 	//It only works if it is greater than 0
 	TaskCount int
+
+	//PanicHandle call if panic
+	PanicHandle func(err interface{})
 }
 
 func mixinOptions(opt []TaskOptions) (o TaskOptions) {
 	for _, e := range opt {
 		if e.TaskCount > 0 {
 			o.TaskCount = e.TaskCount
+		}
+		if e.PanicHandle != nil {
+			o.PanicHandle = e.PanicHandle
 		}
 	}
 	return
@@ -69,9 +75,15 @@ func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
 				defer func() {
 					e := recover()
 					if e != nil {
-						lastError = e
+						if option.PanicHandle != nil {
+							option.PanicHandle(e)
+						} else {
+							lastError = e
+						}
 					}
 				}()
+
+				//call function
 				f(it)
 			}
 		}
