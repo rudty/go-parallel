@@ -13,6 +13,27 @@ the function that takes an argument is the same as range
 		fmt.Println(i, e)
 	})
 ```
+```GO
+	type foo struct {
+		a int
+		b int
+	}
+	a := map[string]interface{}{
+		"a": 1,
+		"b": "b",
+		"c": foo{1, 2},
+		"d": &foo{3, 4},
+	}
+	parallel.ForEach(a, func(k string, v interface{}) {
+		fmt.Println(k, v)
+	})
+	//print
+	//
+	//a 1
+	//b b
+	//d &{3 4}
+	//c {1 2}
+```
 
 ```GO
 	//key value
