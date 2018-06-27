@@ -62,6 +62,43 @@ func TestForEachSliceError(t *testing.T) {
 	})
 }
 
+func TestForEachSliceError2(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("int slice - foreach string")
+		}
+	}()
+	s := []int{5, 4, 3, 2, 1}
+	// t.
+	parallel.ForEach(s, func(i string, e string) {
+		fmt.Println(i, e)
+	})
+}
+
+func TestForEachSliceError3(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("int slice - foreach string")
+		}
+	}()
+	s := []int{5, 4, 3, 2, 1}
+	// t.
+	parallel.ForEach(s, func(i string) {
+		fmt.Println(i)
+	})
+}
+
+func TestForEachSliceEmpty(t *testing.T) {
+
+	s := []int{}
+
+	parallel.ForEach(s, func(i int) {
+		fmt.Println("?")
+	})
+}
+
 func TestForEachSliceSingle(t *testing.T) {
 
 	s := []int{5, 4, 3, 2, 1}
@@ -145,6 +182,46 @@ func TestForEachMapNoArg(t *testing.T) {
 	})
 }
 
+func TestForEachMapKeyError(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("string key func int")
+		}
+	}()
+
+	a := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+		"d": 4,
+		"e": 5,
+	}
+	parallel.ForEachMap(a, func(k int) {
+		fmt.Println("?", k)
+	})
+}
+
+func TestForEachMapValueError(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("int val func string")
+		}
+	}()
+
+	a := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+		"d": 4,
+		"e": 5,
+	}
+	parallel.ForEachMap(a, func(k string, v string) {
+		fmt.Println("?")
+	})
+}
+
 func TestForEachArray(t *testing.T) {
 
 	var a [2048]int
@@ -166,5 +243,50 @@ func TestError(t *testing.T) {
 		PanicHandle: func(err interface{}) {
 			fmt.Println(err)
 		},
+	})
+}
+
+func TestForEachMapEmpty(t *testing.T) {
+	a := map[string]int{}
+	parallel.ForEachMap(a, func() {
+		fmt.Println("?")
+	})
+}
+
+func TestForEachMapBadKey(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("string val func int")
+		}
+	}()
+	a := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+		"d": 4,
+		"e": 5,
+	}
+	parallel.ForEachMap(a, func(a int) {
+		fmt.Println("?")
+	})
+}
+
+func TestForEachMapBadKey2(t *testing.T) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			t.Error("string val func int")
+		}
+	}()
+	a := map[string]int{
+		"a": 1,
+		"b": 2,
+		"c": 3,
+		"d": 4,
+		"e": 5,
+	}
+	parallel.ForEachMap(a, func(k int, v interface{}) {
+		fmt.Println("?")
 	})
 }

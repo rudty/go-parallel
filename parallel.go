@@ -141,12 +141,15 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 		*	f(i, e)
 		* }
 		**/
-		if funcType.In(0).Kind() != reflect.Int {
+
+		if !reflect.TypeOf(0).AssignableTo(funcType.In(0)) {
 			panic("first argument is not an int")
 		}
-		if elemType, argType := reflectionSlice.Index(0).Type().Kind(), funcType.In(1).Kind(); elemType != argType {
+
+		if elemType, argType := reflectionSlice.Index(0).Type(), funcType.In(1); !elemType.AssignableTo(argType) {
 			panic(fmt.Sprintf("slice value type: %v but func second arg type: %v", elemType, argType))
 		}
+
 		For(0, reflectionSlice.Len(), func(i int) {
 			reflectionFunc.Call([]reflect.Value{reflect.ValueOf(i), reflectionSlice.Index(i)})
 		}, opt...)
@@ -156,9 +159,11 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 		*	f(i)
 		* }
 		**/
-		if funcType.In(0).Kind() != reflect.Int {
+
+		if !reflect.TypeOf(0).AssignableTo(funcType.In(0)) {
 			panic("first argument is not an int")
 		}
+
 		For(0, reflectionSlice.Len(), func(i int) {
 			reflectionFunc.Call([]reflect.Value{reflect.ValueOf(i)})
 		}, opt...)
@@ -206,10 +211,10 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 		*	f(k, v)
 		* }
 		**/
-		if keyType, argType := mapKeys[0].Type().Kind(), funcType.In(0).Kind(); keyType != argType {
+		if keyType, argType := mapKeys[0].Type(), funcType.In(0); !keyType.AssignableTo(argType) {
 			panic(fmt.Sprintf("map keyType: %v but func first argType: %v", keyType, argType))
 		}
-		if valType, argType := reflectionMap.MapIndex(mapKeys[0]).Kind(), funcType.In(1).Kind(); valType != argType {
+		if valType, argType := reflectionMap.MapIndex(mapKeys[0]).Type(), funcType.In(1); !valType.AssignableTo(argType) {
 			panic(fmt.Sprintf("map valueType: %v but func second argType: %v", valType, argType))
 		}
 		For(0, len(mapKeys), func(i int) {
@@ -222,7 +227,7 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 		*	f(k)
 		* }
 		**/
-		if keyType, argType := mapKeys[0].Type().Kind(), funcType.In(0).Kind(); keyType != argType {
+		if keyType, argType := mapKeys[0].Type(), funcType.In(0); !keyType.AssignableTo(argType) {
 			panic(fmt.Sprintf("map key: %v but function first arg: %v", keyType, argType))
 		}
 		For(0, len(mapKeys), func(i int) {
