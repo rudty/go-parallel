@@ -30,6 +30,22 @@ func mixinOptions(opt []TaskOptions) (o TaskOptions) {
 
 type taskFunc func()
 
+//ForLoop type is used in the For function
+type ForLoop func(i int)
+
+//For function repeats in parallel, starting with begin and ending with end.
+//Internally, it call the ForLoop function each loop
+func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
+	length := end - begin
+	if length > 0 {
+		if len(opt) == 0 {
+			forLoopWithoutOption(begin, end, f)
+		} else {
+			forLoopWithOption(begin, end, f, mixinOptions(opt))
+		}
+	}
+}
+
 //makeExecutor create worker goroutine
 func makeExecutor(c <-chan taskFunc, count int) {
 	for i := 0; i < count; i++ {
@@ -41,58 +57,62 @@ func makeExecutor(c <-chan taskFunc, count int) {
 	}
 }
 
-//ForLoop type is used in the For function
-type ForLoop func(i int)
+func forLoopWithOption(begin int, end int, f ForLoop, opt TaskOptions) {
 
-//For function repeats in parallel, starting with begin and ending with end.
-//Internally, it call the ForLoop function each loop
-func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
-	length := end - begin
-	if length > 0 {
-		option := mixinOptions(opt)
+	var executorChan = make(chan taskFunc)
+	defer close(executorChan)
 
-		var executorChan = make(chan taskFunc)
-		defer close(executorChan)
+	var taskCount int
+	if opt.TaskCount > 0 {
+		taskCount = opt.TaskCount
+	} else {
+		taskCount = end - begin
+	}
 
-		var taskCount int
-		if option.TaskCount > 0 {
-			taskCount = option.TaskCount
-		} else {
-			taskCount = length
-		}
+	makeExecutor(executorChan, taskCount)
 
-		makeExecutor(executorChan, taskCount)
+	wg := sync.WaitGroup{}
+	wg.Add(end - begin)
 
-		wg := sync.WaitGroup{}
-		wg.Add(end - begin)
-
-		var lastError interface{}
-
-		for i := begin; i < end; i++ {
-			it := i
-			executorChan <- func() {
-				defer wg.Done()
-				defer func() {
-					e := recover()
-					if e != nil {
-						if option.PanicHandle != nil {
-							option.PanicHandle(e)
-						} else {
-							lastError = e
-						}
+	for i := begin; i < end; i++ {
+		it := i
+		executorChan <- func() {
+			defer wg.Done()
+			defer func() {
+				e := recover()
+				if e != nil {
+					if opt.PanicHandle != nil {
+						opt.PanicHandle(e)
 					}
-				}()
+				}
+			}()
 
-				//call function
-				f(it)
-			}
-		}
-		wg.Wait()
-
-		if lastError != nil {
-			panic(lastError)
+			//call function
+			f(it)
 		}
 	}
+	wg.Wait()
+}
+
+func forLoopWithoutOption(begin int, end int, f ForLoop) {
+
+	wg := sync.WaitGroup{}
+	wg.Add(end - begin)
+
+	for i := begin; i < end; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			defer func() {
+				//recevie uncaught panic
+				recover()
+			}()
+
+			//call function
+			f(idx)
+		}(i)
+	}
+
+	wg.Wait()
 }
 
 //ForEachSlice loops the slice in parallel
