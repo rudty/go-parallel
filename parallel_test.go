@@ -290,3 +290,20 @@ func TestForEachMapBadKey2(t *testing.T) {
 		fmt.Println("?")
 	})
 }
+
+func TestRaceDefault(t *testing.T) {
+	parallel.Race(func() {
+		time.Sleep(1 * time.Second)
+		fmt.Println("1sec")
+	},
+		func() {
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("500msec")
+		},
+		func() {
+			time.Sleep(50 * time.Millisecond)
+			fmt.Println("50msec")
+		})
+	fmt.Println("end Rance")
+
+}
