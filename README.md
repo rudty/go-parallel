@@ -7,6 +7,34 @@ Loop in parallel using goroutine
 the function that takes an argument is the same as range
 
 ```GO
+package main
+
+import (
+	"fmt"
+
+	"github.com/rudty/go-parallel"
+)
+
+func main() {
+	a := []int{1, 2, 3, 4, 5}
+	parallel.For(0, len(a), func(i int) {
+		fmt.Println(a[i])
+	})
+
+	parallel.ForEach(a, func(i, e int) {
+		/* prints
+		4 5
+		0 1
+		3 4
+		1 2
+		2 3
+		**/
+		fmt.Println(i, e)
+	})
+}
+```
+
+```GO
 	//slice
 	s := []int{5, 4, 3, 2, 1}
 	parallel.ForEach(s, func(i int, e int) {
