@@ -166,6 +166,7 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 		**/
 
 		if !reflect.TypeOf(0).AssignableTo(funcType.In(0)) {
+			//reflect.TypeOf(0) = int type
 			panic("first argument is not an int")
 		}
 

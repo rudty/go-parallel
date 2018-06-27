@@ -307,3 +307,20 @@ func TestRaceDefault(t *testing.T) {
 	fmt.Println("end Rance")
 
 }
+
+func TestForEachMapAny(t *testing.T) {
+	type foo struct {
+		a int
+		b int
+	}
+	a := map[string]interface{}{
+		"a": 1,
+		"b": "b",
+		"c": foo{1, 2},
+		"d": &foo{3, 4},
+	}
+	parallel.ForEach(a, func(k string, v interface{}) {
+		fmt.Println(k, v)
+	})
+
+}
