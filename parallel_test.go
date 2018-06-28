@@ -2,21 +2,25 @@ package parallel_test
 
 import (
 	"fmt"
-	"go-parallel"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rudty/go-parallel"
 )
 
 func TestForDefault(t *testing.T) {
 	parallel.For(0, 3000, func(i int) {
 		name := fmt.Sprintf("test%d.txt", i)
-		f, _ := os.Open(name)
+		f, err := os.Create(name)
+		if err != nil {
+			t.Error(err)
+		}
 
 		f.Write([]byte("hello"))
 		f.Close()
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 
 		os.Remove(name)
 	})
@@ -322,5 +326,22 @@ func TestForEachMapAny(t *testing.T) {
 	parallel.ForEach(a, func(k string, v interface{}) {
 		fmt.Println(k, v)
 	})
+
+}
+
+func TestAllDefault(t *testing.T) {
+	parallel.All(func() {
+		time.Sleep(1 * time.Second)
+		fmt.Println("1sec")
+	},
+		func() {
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("500msec")
+		},
+		func() {
+			time.Sleep(50 * time.Millisecond)
+			fmt.Println("50msec")
+		})
+	fmt.Println("end All")
 
 }

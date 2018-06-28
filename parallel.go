@@ -41,78 +41,63 @@ type ForLoop func(i int)
 func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
 	length := end - begin
 	if length > 0 {
-		if len(opt) == 0 {
-			forLoopWithoutOption(begin, end, f)
+		option := mixinOptions(opt)
+		if option.TaskCount == 0 {
+			forLoopWithoutTaskCountOption(begin, end, f, option)
 		} else {
-			forLoopWithOption(begin, end, f, mixinOptions(opt))
+			forLoopWithTaskCountOption(begin, end, f, option)
 		}
 	}
 }
 
-//makeExecutor create worker goroutine
-func makeExecutor(c <-chan TaskFunc, count int) {
-	for i := 0; i < count; i++ {
+//callFunc calls the function received as argument in [For]
+func callFunc(i int, f ForLoop, wg *sync.WaitGroup, opt /*readonly*/ *TaskOptions) {
+	defer wg.Done()
+	defer func() {
+		r := recover()
+		if r != nil && opt != nil && opt.PanicHandle != nil {
+			//recevie uncaught panic
+			opt.PanicHandle(r)
+		}
+	}()
+
+	//function call
+	f(i)
+}
+
+func forLoopWithTaskCountOption(begin int, end int, f ForLoop, opt TaskOptions) {
+
+	var taskChan = make(chan TaskFunc)
+	defer close(taskChan)
+
+	for i := 0; i < opt.TaskCount; i++ {
+		//create worker goroutine
 		go func() {
-			for t := range c {
-				t()
+			for task := range taskChan {
+				task()
 			}
 		}()
 	}
-}
-
-func forLoopWithOption(begin int, end int, f ForLoop, opt TaskOptions) {
-
-	var executorChan = make(chan TaskFunc)
-	defer close(executorChan)
-
-	var taskCount int
-	if opt.TaskCount > 0 {
-		taskCount = opt.TaskCount
-	} else {
-		taskCount = end - begin
-	}
-
-	makeExecutor(executorChan, taskCount)
 
 	wg := sync.WaitGroup{}
 	wg.Add(end - begin)
 
 	for i := begin; i < end; i++ {
 		it := i
-		executorChan <- func() {
-			defer wg.Done()
-			defer func() {
-				e := recover()
-				if e != nil {
-					if opt.PanicHandle != nil {
-						opt.PanicHandle(e)
-					}
-				}
-			}()
-
-			//call function
-			f(it)
+		taskChan <- func() {
+			callFunc(it, f, &wg, &opt)
 		}
 	}
 	wg.Wait()
 }
 
-func forLoopWithoutOption(begin int, end int, f ForLoop) {
+func forLoopWithoutTaskCountOption(begin int, end int, f ForLoop, opt TaskOptions) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(end - begin)
 
 	for i := begin; i < end; i++ {
-		go func(idx int) {
-			defer wg.Done()
-			defer func() {
-				//recevie uncaught panic
-				recover()
-			}()
-
-			//call function
-			f(idx)
-		}(i)
+		go callFunc(i, f, &wg, &opt)
 	}
 
 	wg.Wait()
@@ -303,4 +288,12 @@ func Race(functions ...TaskFunc) {
 		}(e)
 	}
 	<-ctx.Done()
+}
+
+//All functions are executed in parallel,
+//and when all functions are finished, [All] ends
+func All(functions ...TaskFunc) {
+	For(0, len(functions), func(i int) {
+		functions[i]()
+	})
 }
