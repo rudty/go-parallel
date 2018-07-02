@@ -18,6 +18,8 @@ type TaskOptions struct {
 	PanicHandle func(err interface{})
 }
 
+var emptyIn = []reflect.Value{}
+
 func mixinOptions(opt []TaskOptions) (o TaskOptions) {
 	for _, e := range opt {
 		if e.TaskCount > 0 {
@@ -165,7 +167,7 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 		* }
 		**/
 		For(0, reflectionSlice.Len(), func(_ int) {
-			reflectionFunc.Call([]reflect.Value{})
+			reflectionFunc.Call(emptyIn)
 		}, opt...)
 	}
 }
@@ -232,7 +234,7 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 		* }
 		**/
 		For(0, len(mapKeys), func(_ int) {
-			reflectionFunc.Call([]reflect.Value{})
+			reflectionFunc.Call(emptyIn)
 		}, opt...)
 	}
 
