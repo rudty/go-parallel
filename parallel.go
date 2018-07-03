@@ -19,18 +19,7 @@ type TaskOptions struct {
 }
 
 var emptyIn = []reflect.Value{}
-
-func mixinOptions(opt []TaskOptions) (o TaskOptions) {
-	for _, e := range opt {
-		if e.TaskCount > 0 {
-			o.TaskCount = e.TaskCount
-		}
-		if e.PanicHandle != nil {
-			o.PanicHandle = e.PanicHandle
-		}
-	}
-	return
-}
+var emptyOption = &TaskOptions{}
 
 //TaskFunc functions that are executed in parallel
 type TaskFunc func()
@@ -40,10 +29,16 @@ type ForLoop func(i int)
 
 //For function repeats in parallel, starting with begin and ending with end.
 //Internally, it call the ForLoop function each loop
+//If put multiple options, only the first one is valid.
 func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
 	length := end - begin
 	if length > 0 {
-		option := mixinOptions(opt)
+
+		option := emptyOption
+		if len(opt) > 0 {
+			option = &opt[0]
+		}
+
 		if option.TaskCount == 0 {
 			forLoopWithoutTaskCountOption(begin, end, f, option)
 		} else {
@@ -67,7 +62,7 @@ func callFunc(i int, f ForLoop, wg *sync.WaitGroup, opt /*readonly*/ *TaskOption
 	f(i)
 }
 
-func forLoopWithTaskCountOption(begin int, end int, f ForLoop, opt TaskOptions) {
+func forLoopWithTaskCountOption(begin int, end int, f ForLoop, opt *TaskOptions) {
 
 	var taskChan = make(chan TaskFunc)
 	defer close(taskChan)
@@ -87,25 +82,26 @@ func forLoopWithTaskCountOption(begin int, end int, f ForLoop, opt TaskOptions) 
 	for i := begin; i < end; i++ {
 		it := i
 		taskChan <- func() {
-			callFunc(it, f, &wg, &opt)
+			callFunc(it, f, &wg, opt)
 		}
 	}
 	wg.Wait()
 }
 
-func forLoopWithoutTaskCountOption(begin int, end int, f ForLoop, opt TaskOptions) {
+func forLoopWithoutTaskCountOption(begin int, end int, f ForLoop, opt *TaskOptions) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(end - begin)
 
 	for i := begin; i < end; i++ {
-		go callFunc(i, f, &wg, &opt)
+		go callFunc(i, f, &wg, opt)
 	}
 
 	wg.Wait()
 }
 
 //ForEachSlice loops the slice in parallel
+//If put multiple options, only the first one is valid.
 //slice: slice, array
 //f: any function
 //
@@ -173,6 +169,7 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 }
 
 //ForEachMap loops the Map in parallel
+//If put multiple options, only the first one is valid.
 //m: map
 //f: any function
 // a := map[string]int{
@@ -242,6 +239,7 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 
 //ForEach loops the collection in parallel
 //collection: slice, array, map
+//If put multiple options, only the first one is valid.
 //f: any function
 //
 // ex1)
