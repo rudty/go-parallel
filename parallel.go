@@ -289,19 +289,28 @@ type TaskFunc func()
 
 //Race functions that are passed as arguments are executed in parallel,
 //and when one of them is finished the function is terminated
-// other functions do not force shutdown.
+//other functions do not force shutdown.
 func Race(functions ...TaskFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	for _, e := range functions {
-		go func(f TaskFunc) {
-			defer cancel()
-			defer defaultRecover()
+	RaceWithContext(emptyContext, functions...)
+}
 
-			f()
-		}(e)
+//RaceWithContext functions that are passed as arguments are executed in parallel,
+//and when one of them is finished the function is terminated
+// other functions do not force shutdown.
+func RaceWithContext(ctx context.Context, functions ...TaskFunc) {
+	if len(functions) > 0 {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		for _, e := range functions {
+			go func(f TaskFunc) {
+				defer cancel()
+				defer defaultRecover()
+
+				f()
+			}(e)
+		}
+		<-ctx.Done()
 	}
-	<-ctx.Done()
 }
 
 //All functions are executed in parallel,

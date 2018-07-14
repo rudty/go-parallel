@@ -397,3 +397,27 @@ func TestAllWithContext2(t *testing.T) {
 		t.Error("require timeout error")
 	}
 }
+
+func TestRaceWithContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	parallel.RaceWithContext(ctx, func() {
+		time.Sleep(30 * time.Second)
+	})
+
+	if ctx.Err() == nil {
+		t.Error("require timeout error")
+	}
+}
+
+func TestRaceWithContext2(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	parallel.RaceWithContext(ctx, func() {
+
+	})
+
+	if ctx.Err() != nil {
+		t.Error("require timeout error")
+	}
+}
