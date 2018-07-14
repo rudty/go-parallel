@@ -1,6 +1,7 @@
 package parallel_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -33,8 +34,6 @@ func TestForLoopArg(t *testing.T) {
 	}
 	parallel.ForEach(s, func(i int, e int) {
 		fmt.Println(i, e)
-	}, parallel.TaskOptions{
-		TaskCount: 1, // <- single loop..
 	})
 }
 
@@ -43,6 +42,15 @@ func TestForEachSliceDefault(t *testing.T) {
 	parallel.ForEach(s, func(i int, e int) {
 		fmt.Println(i, e)
 	})
+
+}
+
+func TestForEachSliceDefault2(t *testing.T) {
+	s := []int{5, 4, 3, 2, 1}
+	parallel.ForEachSlice(s, func(i int, e int) {
+		fmt.Println(i, e)
+	})
+
 }
 
 func TestForEachSliceInterface(t *testing.T) {
@@ -238,18 +246,6 @@ func TestForEachArray(t *testing.T) {
 	})
 }
 
-func TestError(t *testing.T) {
-
-	var a [5]int
-	parallel.ForEach(a, func(_ int, e int) {
-		panic("a")
-	}, parallel.TaskOptions{
-		PanicHandle: func(err interface{}) {
-			fmt.Println(err)
-		},
-	})
-}
-
 func TestForEachMapEmpty(t *testing.T) {
 	a := map[string]int{}
 	parallel.ForEachMap(a, func() {
@@ -344,4 +340,60 @@ func TestAllDefault(t *testing.T) {
 		})
 	fmt.Println("end All")
 
+}
+
+func TestContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	parallel.ForWithContext(ctx, 0, 100, func(i int) {
+		// time.Sleep(1 * time.Second)
+	})
+
+	if ctx.Err() != nil {
+		t.Error(ctx.Err())
+	}
+}
+
+func TestContext2(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	parallel.ForWithContext(ctx, 0, 100, func(i int) {
+		time.Sleep(1 * time.Second)
+	})
+
+	if ctx.Err() == nil {
+		t.Error("require timeout error")
+	}
+}
+
+func TestAllWithContext(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	parallel.AllWithContext(ctx, func() {
+
+	}, func() {
+
+	})
+
+	if ctx.Err() != nil {
+		t.Error(ctx.Err())
+	}
+}
+
+func TestAllWithContext2(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	parallel.AllWithContext(ctx, func() {
+
+	}, func() {
+		time.Sleep(2 * time.Second)
+	})
+
+	if ctx.Err() == nil {
+		t.Error("require timeout error")
+	}
 }

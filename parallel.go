@@ -7,97 +7,54 @@ import (
 	"sync"
 )
 
-//TaskOptions options for parallel processing
-type TaskOptions struct {
-
-	//TaskCount Sets the goroutine count
-	//It only works if it is greater than 0
-	TaskCount int
-
-	//PanicHandle call if panic
-	PanicHandle func(err interface{})
-}
-
 var emptyIn = []reflect.Value{}
-var emptyOption = &TaskOptions{}
-
-//TaskFunc functions that are executed in parallel
-type TaskFunc func()
+var emptyContext = context.Background()
 
 //ForLoop type is used in the For function
 type ForLoop func(i int)
 
+// panic will not end the program.
+// recommend that use the arg ForLoop parameter than using this
+func defaultRecover() {
+	recover()
+}
+
 //For function repeats in parallel, starting with begin and ending with end.
 //Internally, it call the ForLoop function each loop
-//If put multiple options, only the first one is valid.
-func For(begin int, end int, f ForLoop, opt ...TaskOptions) {
+func For(begin int, end int, f ForLoop) {
+	ForWithContext(emptyContext, begin, end, f)
+}
+
+//ForWithContext function repeats in parallel, starting with begin and ending with end.
+//Internally, it call the ForLoop function each loop
+func ForWithContext(c context.Context, begin int, end int, f ForLoop) {
 	length := end - begin
+
 	if length > 0 {
-
-		option := emptyOption
-		if len(opt) > 0 {
-			option = &opt[0]
-		}
-
-		if option.TaskCount == 0 {
-			forLoopWithoutTaskCountOption(begin, end, f, option)
-		} else {
-			forLoopWithTaskCountOption(begin, end, f, option)
-		}
+		ctx, cacnel := context.WithCancel(c)
+		go doLoop(cacnel, begin, end, f)
+		<-ctx.Done()
 	}
 }
 
-//callFunc calls the function received as argument in [For]
-func callFunc(i int, f ForLoop, wg *sync.WaitGroup, opt /*readonly*/ *TaskOptions) {
-	defer wg.Done()
-	defer func() {
-		r := recover()
-		if r != nil && opt != nil && opt.PanicHandle != nil {
-			//recevie uncaught panic
-			opt.PanicHandle(r)
-		}
-	}()
-
-	//function call
-	f(i)
-}
-
-func forLoopWithTaskCountOption(begin int, end int, f ForLoop, opt *TaskOptions) {
-
-	var taskChan = make(chan TaskFunc)
-	defer close(taskChan)
-
-	for i := 0; i < opt.TaskCount; i++ {
-		//create worker goroutine
-		go func() {
-			for task := range taskChan {
-				task()
-			}
-		}()
-	}
+//doLoop calls the function received as argument in [For]
+func doLoop(ctxCancel context.CancelFunc, begin int, end int, f ForLoop) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(end - begin)
 
 	for i := begin; i < end; i++ {
-		it := i
-		taskChan <- func() {
-			callFunc(it, f, &wg, opt)
-		}
-	}
-	wg.Wait()
-}
+		go func(it int) {
+			defer wg.Done()
+			defer defaultRecover()
 
-func forLoopWithoutTaskCountOption(begin int, end int, f ForLoop, opt *TaskOptions) {
-
-	wg := sync.WaitGroup{}
-	wg.Add(end - begin)
-
-	for i := begin; i < end; i++ {
-		go callFunc(i, f, &wg, opt)
+			//function call
+			f(it)
+		}(i)
 	}
 
 	wg.Wait()
+	ctxCancel()
 }
 
 //ForEachSlice loops the slice in parallel
@@ -109,7 +66,20 @@ func forLoopWithoutTaskCountOption(begin int, end int, f ForLoop, opt *TaskOptio
 // parallel.ForEachSlice(s, func(i int, e int) {
 // 		fmt.Println(i, e)
 // })
-func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
+func ForEachSlice(slice interface{}, f interface{}) {
+	ForEachSliceWithContext(emptyContext, slice, f)
+}
+
+//ForEachSliceWithContext loops the slice in parallel
+//If put multiple options, only the first one is valid.
+//slice: slice, array
+//f: any function
+//
+// s := []int{1,2,3,4,5}
+// parallel.ForEachSlice(s, func(i int, e int) {
+// 		fmt.Println(i, e)
+// })
+func ForEachSliceWithContext(ctx context.Context, slice interface{}, f interface{}) {
 	reflectionSlice := reflect.ValueOf(slice)
 	reflectionFunc := reflect.ValueOf(f)
 
@@ -138,9 +108,9 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 			panic(fmt.Sprintf("slice value type: %v but func second arg type: %v", elemType, argType))
 		}
 
-		For(0, reflectionSlice.Len(), func(i int) {
+		ForWithContext(ctx, 0, reflectionSlice.Len(), func(i int) {
 			reflectionFunc.Call([]reflect.Value{reflect.ValueOf(i), reflectionSlice.Index(i)})
-		}, opt...)
+		})
 	} else if funcArgc == 1 {
 		/**
 		* for i := range slice {
@@ -153,18 +123,18 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 			panic("first argument is not an int")
 		}
 
-		For(0, reflectionSlice.Len(), func(i int) {
+		ForWithContext(ctx, 0, reflectionSlice.Len(), func(i int) {
 			reflectionFunc.Call([]reflect.Value{reflect.ValueOf(i)})
-		}, opt...)
+		})
 	} else if funcArgc == 0 {
 		/**
 		* for _ := range slice {
 		*	f()
 		* }
 		**/
-		For(0, reflectionSlice.Len(), func(_ int) {
+		ForWithContext(ctx, 0, reflectionSlice.Len(), func(_ int) {
 			reflectionFunc.Call(emptyIn)
-		}, opt...)
+		})
 	}
 }
 
@@ -182,7 +152,25 @@ func ForEachSlice(slice interface{}, f interface{}, opt ...TaskOptions) {
 // parallel.ForEachMap(a, func(k string, v int) {
 // 		fmt.Println(k, v)
 // })
-func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
+func ForEachMap(m interface{}, f interface{}) {
+	ForEachMapWithContext(emptyContext, m, f)
+}
+
+//ForEachMapWithContext loops the Map in parallel
+//If put multiple options, only the first one is valid.
+//m: map
+//f: any function
+// a := map[string]int{
+// 	"a": 1,
+// 	"b": 2,
+// 	"c": 3,
+// 	"d": 4,
+// 	"e": 5,
+// }
+// parallel.ForEachMap(a, func(k string, v int) {
+// 		fmt.Println(k, v)
+// })
+func ForEachMapWithContext(ctx context.Context, m interface{}, f interface{}) {
 	reflectionMap := reflect.ValueOf(m)
 
 	if reflectionMap.Len() == 0 {
@@ -208,10 +196,10 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 		if valType, argType := mapType.Elem(), funcType.In(1); !valType.AssignableTo(argType) {
 			panic(fmt.Sprintf("map valueType: %v but func second argType: %v", valType, argType))
 		}
-		For(0, len(mapKeys), func(i int) {
+		ForWithContext(ctx, 0, len(mapKeys), func(i int) {
 			key := mapKeys[i]
 			reflectionFunc.Call([]reflect.Value{key, reflectionMap.MapIndex(key)})
-		}, opt...)
+		})
 	} else if funcArgc == 1 {
 		/**
 		* for k := range m {
@@ -221,18 +209,18 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 		if keyType, argType := mapType.Key(), funcType.In(0); !keyType.AssignableTo(argType) {
 			panic(fmt.Sprintf("map key: %v but function first arg: %v", keyType, argType))
 		}
-		For(0, len(mapKeys), func(i int) {
+		ForWithContext(ctx, 0, len(mapKeys), func(i int) {
 			reflectionFunc.Call([]reflect.Value{mapKeys[i]})
-		}, opt...)
+		})
 	} else if funcArgc == 0 {
 		/**
 		* for _ := range m {
 		*	f()
 		* }
 		**/
-		For(0, len(mapKeys), func(_ int) {
+		ForWithContext(ctx, 0, len(mapKeys), func(_ int) {
 			reflectionFunc.Call(emptyIn)
-		}, opt...)
+		})
 	}
 
 }
@@ -259,16 +247,45 @@ func ForEachMap(m interface{}, f interface{}, opt ...TaskOptions) {
 // parallel.ForEach(a, func(k string, v int) {
 // 		fmt.Println(k, v)
 // })
-func ForEach(collection interface{}, f interface{}, opt ...TaskOptions) {
+func ForEach(collection interface{}, f interface{}) {
+	ForEachWithContext(emptyContext, collection, f)
+}
+
+//ForEachWithContext loops the collection in parallel
+//collection: slice, array, map
+//If put multiple options, only the first one is valid.
+//f: any function
+//
+// ex1)
+// s := []int{1,2,3,4,5}
+// parallel.ForEach(s, func(i int, e int) {
+// 		fmt.Println(i, e)
+// })
+//
+// ex2)
+// a := map[string]int{
+// 	"a": 1,
+// 	"b": 2,
+// 	"c": 3,
+// 	"d": 4,
+// 	"e": 5,
+// }
+// parallel.ForEach(a, func(k string, v int) {
+// 		fmt.Println(k, v)
+// })
+func ForEachWithContext(ctx context.Context, collection interface{}, f interface{}) {
 	collectionKind := reflect.TypeOf(collection).Kind()
 
 	switch collectionKind {
 	case reflect.Slice, reflect.Array:
-		ForEachSlice(collection, f, opt...)
+		ForEachSliceWithContext(ctx, collection, f)
 	case reflect.Map:
-		ForEachMap(collection, f, opt...)
+		ForEachMapWithContext(ctx, collection, f)
 	}
 }
+
+//TaskFunc functions that are executed in parallel
+type TaskFunc func()
 
 //Race functions that are passed as arguments are executed in parallel,
 //and when one of them is finished the function is terminated
@@ -279,10 +296,7 @@ func Race(functions ...TaskFunc) {
 	for _, e := range functions {
 		go func(f TaskFunc) {
 			defer cancel()
-			defer func() {
-				//recevie uncaught panic
-				recover()
-			}()
+			defer defaultRecover()
 
 			f()
 		}(e)
@@ -294,6 +308,15 @@ func Race(functions ...TaskFunc) {
 //and when all functions are finished, [All] ends
 func All(functions ...TaskFunc) {
 	For(0, len(functions), func(i int) {
+		functions[i]()
+	})
+}
+
+//AllWithContext functions are executed in parallel,
+//and when all functions are finished, [AllWithContext] ends
+//or cancel context called
+func AllWithContext(ctx context.Context, functions ...TaskFunc) {
+	ForWithContext(ctx, 0, len(functions), func(i int) {
 		functions[i]()
 	})
 }
