@@ -3,6 +3,7 @@ package parallel
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"sync"
 )
@@ -14,9 +15,11 @@ var emptyContext = context.Background()
 type ForLoop func(i int)
 
 // panic will not end the program.
-// recommend that use the arg ForLoop parameter than using this
 func defaultRecover() {
-	recover()
+	r := recover()
+	if r != nil {
+		fmt.Fprintln(os.Stderr, r)
+	}
 }
 
 //For function repeats in parallel, starting with begin and ending with end.
